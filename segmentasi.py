@@ -1,0 +1,195 @@
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+
+# =================================================
+# FUNGSI MSE
+# =================================================
+def calculate_mse(img1, img2):
+    img1 = img1.astype(np.float32)
+    img2 = img2.astype(np.float32)
+    return np.mean((img1 - img2) ** 2)
+
+
+# =================================================
+# 1. Operator Roberts (2x2)
+# =================================================
+def apply_roberts(img):
+    img = img.astype(np.float32)
+    h, w = img.shape
+    out = np.zeros((h, w), dtype=np.float32)
+
+    Gx = np.array([[1,  0],
+                   [0, -1]], dtype=np.float32)
+
+    Gy = np.array([[0, -1],
+                   [1,  0]], dtype=np.float32)
+
+    for y in range(h - 1):
+        for x in range(w - 1):
+            region = img[y:y+2, x:x+2]
+            gx = np.sum(region * Gx)
+            gy = np.sum(region * Gy)
+            out[y, x] = np.sqrt(gx**2 + gy**2)
+
+    if out.max() > 0:
+        out = out / out.max() * 255
+    return out.astype(np.uint8)
+
+
+# =================================================
+# 2. Operator Prewitt (3x3)
+# =================================================
+def apply_prewitt(img):
+    img = img.astype(np.float32)
+    h, w = img.shape
+    out = np.zeros((h, w), dtype=np.float32)
+    padded = np.pad(img, ((1,1),(1,1)), mode='constant')
+
+    Gx = np.array([[ 1,  0, -1],
+                   [ 1,  0, -1],
+                   [ 1,  0, -1]], dtype=np.float32)
+
+    Gy = np.array([[-1, -1, -1],
+                   [ 0,  0,  0],
+                   [ 1,  1,  1]], dtype=np.float32)
+
+    for y in range(1, h+1):
+        for x in range(1, w+1):
+            region = padded[y-1:y+2, x-1:x+2]
+            gx = np.sum(region * Gx)
+            gy = np.sum(region * Gy)
+            out[y-1, x-1] = np.sqrt(gx**2 + gy**2)
+
+    if out.max() > 0:
+        out = out / out.max() * 255
+    return out.astype(np.uint8)
+
+
+# =================================================
+# 3. Operator Sobel (3x3)
+# =================================================
+def apply_sobel(img):
+    img = img.astype(np.float32)
+    h, w = img.shape
+    out = np.zeros((h, w), dtype=np.float32)
+    padded = np.pad(img, ((1,1),(1,1)), mode='constant')
+
+    Gx = np.array([[-1, 0, 1],
+                   [-2, 0, 2],
+                   [-1, 0, 1]], dtype=np.float32)
+
+    Gy = np.array([[ 1,  2,  1],
+                   [ 0,  0,  0],
+                   [-1, -2, -1]], dtype=np.float32)
+
+    for y in range(1, h+1):
+        for x in range(1, w+1):
+            region = padded[y-1:y+2, x-1:x+2]
+            gx = np.sum(region * Gx)
+            gy = np.sum(region * Gy)
+            out[y-1, x-1] = np.sqrt(gx**2 + gy**2)
+
+    if out.max() > 0:
+        out = out / out.max() * 255
+    return out.astype(np.uint8)
+
+
+# =================================================
+# 4. Operator Frei-Chen (3x3)
+# =================================================
+def apply_freichen(img):
+    img = img.astype(np.float32)
+    h, w = img.shape
+    out = np.zeros((h, w), dtype=np.float32)
+    padded = np.pad(img, ((1,1),(1,1)), mode='constant')
+
+    s2 = np.sqrt(2)
+
+    Gx = np.array([[-1,   0,  1],
+                   [-s2,  0, s2],
+                   [-1,   0,  1]], dtype=np.float32)
+
+    Gy = np.array([[ 1,  s2,  1],
+                   [ 0,   0,  0],
+                   [-1, -s2, -1]], dtype=np.float32)
+
+    for y in range(1, h+1):
+        for x in range(1, w+1):
+            region = padded[y-1:y+2, x-1:x+2]
+            gx = np.sum(region * Gx)
+            gy = np.sum(region * Gy)
+            out[y-1, x-1] = np.sqrt(gx**2 + gy**2)
+
+    if out.max() > 0:
+        out = out / out.max() * 255
+    return out.astype(np.uint8)
+
+
+# =================================================
+# MAIN PROGRAM
+# =================================================
+folder = "./image"
+
+image_files = [f for f in os.listdir(folder)
+               if f.lower().endswith((".jpg", ".png", ".jpeg"))]
+
+methods = {
+    "Roberts": apply_roberts,
+    "Prewitt": apply_prewitt,
+    "Sobel": apply_sobel,
+    "Frei-Chen": apply_freichen
+}
+
+if not image_files:
+    print("Tidak ada gambar di folder ./image")
+else:
+    for fname in image_files:
+        path = os.path.join(folder, fname)
+        img_src = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+
+        if img_src is None:
+            continue
+
+        print(f"\n=== HASIL MSE UNTUK {fname} ===")
+
+        plt.figure(figsize=(15, 8))
+        plt.suptitle(f"Deteksi Tepi & MSE: {fname}", fontsize=16)
+
+        plt.subplot(2, 3, 1)
+        plt.imshow(img_src, cmap="gray")
+        plt.title("Citra Asli")
+        plt.axis("off")
+
+        idx = 2
+        mse_results = {}
+
+        for name, func in methods.items():
+            result = func(img_src)
+            mse = calculate_mse(img_src, result)
+            mse_results[name] = mse
+
+            plt.subplot(2, 3, idx)
+            plt.imshow(result, cmap="gray")
+            plt.title(f"{name}\nMSE: {mse:.2f}")
+            plt.axis("off")
+            idx += 1
+
+        plt.tight_layout()
+        plt.show()
+
+        # ===== TABEL MSE =====
+        print("Metode\t\tMSE")
+        print("----------------------------")
+        for method, mse in mse_results.items():
+            print(f"{method}\t\t{mse:.2f}")
+
+        # ===== GRAFIK MSE =====
+        plt.figure(figsize=(7,5))
+        plt.bar(mse_results.keys(), mse_results.values())
+        plt.xlabel("Metode")
+        plt.ylabel("MSE")
+        plt.title(f"Grafik Perbandingan MSE - {fname}")
+        plt.show()
+
